@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: '[Finance] SAP System API'
-  version: 1.0.0
+  version: 1.1.0
   description: 'SAP as the finance domain''s system: sales orders (with the credit check), invoices and payments,
     translated to the platform''s contract. Internal: only building blocks on the platform''s allow-list may call
     it, with an Entra ID token. Every change becomes a finance fact on evgt-intplat-finance (asyncapi.yaml).'
@@ -197,6 +197,61 @@ paths:
                 detail: SAP has no sales order with this number.
                 instance: /sales-orders/8000043217
       x-business-keys: {}
+  /invoices:
+    x-summary: Invoices
+    get:
+      tags:
+      - Finance
+      operationId: retrieveListOfInvoices
+      summary: Retrieve List of Invoices
+      description: The invoices of one order (since 1.1.0).
+      parameters:
+      - $ref: '#/components/parameters/orderId'
+      - $ref: '#/components/parameters/correlationId'
+      responses:
+        '200':
+          description: The invoices of the order.
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/invoiceList'
+              example:
+                _links:
+                  self:
+                    href: /invoices?orderId=4711
+                totalCount: 1
+                _embedded:
+                  invoices:
+                  - _links:
+                      self:
+                        href: /invoices/90004711
+                    invoiceNumber: '90004711'
+                    erpOrderNumber: '8000043217'
+                    orderId: '4711'
+                    customerId: ACME
+                    amount:
+                      value: 84000.0
+                      currency: EUR
+                    paidAmount:
+                      value: 0.0
+                      currency: EUR
+                    status: open
+                    issuedAt: '2026-10-03T09:12:05Z'
+                    dueDate: '2026-11-02'
+        '400':
+          description: The request does not match the contract, or the Correlation-Id header is missing or invalid.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/problemDetail'
+              example:
+                type: https://github.com/azure-intelligence-domain/system-api-sap/blob/main/docs/problems/invalid-request.md
+                title: Invalid Request
+                status: 400
+                detail: The request does not match the contract, or the Correlation-Id header is missing or invalid.
+                instance: /invoices?orderId=4711
+      x-business-keys:
+        orderid: query.orderId
   /invoices/{invoiceNumber}:
     x-summary: Invoice
     get:
@@ -370,6 +425,15 @@ components:
         type: string
         pattern: ^[0-9]+$
       example: '8000043217'
+    orderId:
+      name: orderId
+      in: query
+      required: true
+      description: The platform's order id, e.g. 4711.
+      schema:
+        type: string
+        pattern: ^[0-9]+$
+      example: '4711'
     invoiceNumber:
       name: invoiceNumber
       in: path
@@ -546,6 +610,37 @@ components:
           type: string
           description: Due date. ISO 8601.
           format: date
+    invoiceList:
+      type: object
+      description: The invoices of one order.
+      required:
+      - _links
+      - totalCount
+      - _embedded
+      properties:
+        _links:
+          type: object
+          description: HAL links.
+          required:
+          - self
+          properties:
+            self:
+              $ref: '#/components/schemas/halLink'
+        totalCount:
+          type: integer
+          description: Number of invoices.
+          minimum: 0
+        _embedded:
+          type: object
+          description: The invoices.
+          required:
+          - invoices
+          properties:
+            invoices:
+              type: array
+              description: Invoices.
+              items:
+                $ref: '#/components/schemas/invoice'
     paymentRequest:
       type: object
       description: Money received for an invoice.

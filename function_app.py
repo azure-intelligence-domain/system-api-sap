@@ -39,6 +39,17 @@ def retrieve_invoice(req: func.HttpRequest, store) -> func.HttpResponse:
 
 
 @kit.refusals
+def retrieve_list_of_invoices(req: func.HttpRequest, store) -> func.HttpResponse:
+    kit.journey(req)
+    order_id = req.params.get("orderId", "")
+    if not order_id.isdigit():
+        raise kit.invalid("Query parameter orderId is required, e.g. 4711.", req)
+    invoices = [sap.invoice(vbrk) for vbrk in store.find("VBRK", BSTKD=order_id)]
+    return kit.hal(200, {"_links": {"self": {"href": f"/invoices?orderId={order_id}"}}, "totalCount": len(invoices),
+                         "_embedded": {"invoices": invoices}})
+
+
+@kit.refusals
 def record_payment(req: func.HttpRequest, store, topic) -> func.HttpResponse:
     journey = kit.journey(req)
     try:
@@ -64,6 +75,11 @@ def createSalesOrder(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="sales-orders/{erpOrderNumber}", methods=["GET"])
 def retrieveSalesOrder(req: func.HttpRequest) -> func.HttpResponse:
     return retrieve_sales_order(req, kit.system_store())
+
+
+@app.route(route="invoices", methods=["GET"])
+def retrieveListOfInvoices(req: func.HttpRequest) -> func.HttpResponse:
+    return retrieve_list_of_invoices(req, kit.system_store())
 
 
 @app.route(route="invoices/{invoiceNumber}", methods=["GET"])

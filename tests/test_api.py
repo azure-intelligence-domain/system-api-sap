@@ -80,3 +80,11 @@ def test_the_contract_and_the_journey_are_checked(sap):
     no_journey = request("POST", "/sales-orders", ORDER, headers={"Correlation-Id": ""})
     assert api.create_sales_order(no_journey, *sap).status_code == 400
     assert not sap[1].events
+
+
+def test_the_invoices_of_an_order(sap):
+    create(sap)
+    response = api.retrieve_list_of_invoices(func.HttpRequest("GET", "/invoices", headers={"Correlation-Id": "ord-4711"},
+                                                              params={"orderId": "4711"}, body=b""), sap[0])
+    page = json.loads(response.get_body())
+    assert response.status_code == 200 and page["totalCount"] == 1 and page["_embedded"]["invoices"][0]["invoiceNumber"] == "90004711"
