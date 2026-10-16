@@ -1,0 +1,447 @@
+asyncapi: 2.6.0
+id: urn:azure-intelligence-domain:finance:system-api-sap
+info:
+  title: '[Finance] SAP Events'
+  version: 1.0.0
+  description: The business facts of the finance domain, published by the SAP System API to evgt-intplat-finance.
+    Every event carries orderid and customerid as business keys and the order's journey as correlationid.
+  contact:
+    name: Finance Domain Team
+    url: https://github.com/azure-intelligence-domain/system-api-sap
+  license:
+    name: MIT
+    url: https://github.com/azure-intelligence-domain/system-api-sap/blob/main/LICENSE
+tags:
+- name: finance
+  description: Finance domain.
+externalDocs:
+  description: EventCatalog entry of the finance domain
+  url: https://azure-intelligence-domain.github.io/eventcatalog/docs/domains/finance/1.0.0
+defaultContentType: application/cloudevents+json
+servers:
+  demo-event-grid:
+    $ref: https://raw.githubusercontent.com/azure-intelligence-domain/contracts/v1.2.0/asyncapi/landscape.asyncapi.yaml#/components/servers/demo-event-grid
+channels:
+  finance.system-api-sap.event.sales-order-accepted:
+    description: 'SAP accepted the order: the credit and availability checks passed, the sales order exists.'
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-finance
+          eventType: com.acme.finance.salesOrderAccepted
+    publish:
+      operationId: publishSalesOrderAccepted
+      summary: Publish SalesOrderAccepted.
+      description: 'The SAP System API publishes SalesOrderAccepted when this fact happens: SAP accepted the order:
+        the credit and availability checks passed, the sales order exists.'
+      security:
+      - entraIdEventGrid:
+        - https://eventgrid.azure.net/.default
+      tags:
+      - name: finance
+        description: Finance domain.
+      externalDocs:
+        description: SalesOrderAccepted in EventCatalog
+        url: https://azure-intelligence-domain.github.io/eventcatalog/docs/events/salesOrderAccepted
+      x-producers:
+        demo:
+        - system-api-sap
+      message:
+        $ref: '#/components/messages/salesOrderAccepted'
+  finance.system-api-sap.event.sales-order-refused:
+    description: SAP refused the order, for example because the credit check failed.
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-finance
+          eventType: com.acme.finance.salesOrderRefused
+    publish:
+      operationId: publishSalesOrderRefused
+      summary: Publish SalesOrderRefused.
+      description: 'The SAP System API publishes SalesOrderRefused when this fact happens: SAP refused the order,
+        for example because the credit check failed.'
+      security:
+      - entraIdEventGrid:
+        - https://eventgrid.azure.net/.default
+      tags:
+      - name: finance
+        description: Finance domain.
+      externalDocs:
+        description: SalesOrderRefused in EventCatalog
+        url: https://azure-intelligence-domain.github.io/eventcatalog/docs/events/salesOrderRefused
+      x-producers:
+        demo:
+        - system-api-sap
+      message:
+        $ref: '#/components/messages/salesOrderRefused'
+  finance.system-api-sap.event.invoice-issued:
+    description: 'SAP billed the order: the invoice was sent to the customer.'
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-finance
+          eventType: com.acme.finance.invoiceIssued
+    publish:
+      operationId: publishInvoiceIssued
+      summary: Publish InvoiceIssued.
+      description: 'The SAP System API publishes InvoiceIssued when this fact happens: SAP billed the order: the
+        invoice was sent to the customer.'
+      security:
+      - entraIdEventGrid:
+        - https://eventgrid.azure.net/.default
+      tags:
+      - name: finance
+        description: Finance domain.
+      externalDocs:
+        description: InvoiceIssued in EventCatalog
+        url: https://azure-intelligence-domain.github.io/eventcatalog/docs/events/invoiceIssued
+      x-producers:
+        demo:
+        - system-api-sap
+      message:
+        $ref: '#/components/messages/invoiceIssued'
+  finance.system-api-sap.event.payment-received:
+    description: Money came in against an invoice.
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-finance
+          eventType: com.acme.finance.paymentReceived
+    publish:
+      operationId: publishPaymentReceived
+      summary: Publish PaymentReceived.
+      description: 'The SAP System API publishes PaymentReceived when this fact happens: Money came in against an
+        invoice.'
+      security:
+      - entraIdEventGrid:
+        - https://eventgrid.azure.net/.default
+      tags:
+      - name: finance
+        description: Finance domain.
+      externalDocs:
+        description: PaymentReceived in EventCatalog
+        url: https://azure-intelligence-domain.github.io/eventcatalog/docs/events/paymentReceived
+      x-producers:
+        demo:
+        - system-api-sap
+      message:
+        $ref: '#/components/messages/paymentReceived'
+components:
+  securitySchemes:
+    entraIdEventGrid:
+      $ref: https://raw.githubusercontent.com/azure-intelligence-domain/contracts/v1.2.0/asyncapi/landscape.asyncapi.yaml#/components/securitySchemes/entraIdEventGrid
+  messages:
+    salesOrderAccepted:
+      messageId: salesOrderAccepted
+      name: salesOrderAccepted
+      title: Sales Order Accepted
+      summary: 'SAP accepted the order: the credit and availability checks passed, the sales order exists.'
+      description: 'CloudEvent of type com.acme.finance.salesOrderAccepted. SAP accepted the order: the credit and
+        availability checks passed, the sales order exists.'
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: https://raw.githubusercontent.com/azure-intelligence-domain/contracts/v1.2.0/schemas/envelope/1.1.0/envelope.schema.json
+        - type: object
+          description: What this event adds to the envelope.
+          required:
+          - type
+          - orderid
+          - customerid
+          - data
+          properties:
+            type:
+              const: com.acme.finance.salesOrderAccepted
+            orderid:
+              type: string
+            customerid:
+              type: string
+            data:
+              $ref: '#/components/schemas/salesOrderAcceptedData'
+      examples:
+      - name: acmeOrder4711
+        summary: SalesOrderAccepted for ACME's order 4711.
+        payload:
+          specversion: '1.0'
+          id: salesOrderAccepted-4711-0001
+          source: /system-api-sap/1.0.0
+          type: com.acme.finance.salesOrderAccepted
+          time: '2026-10-03T09:12:06Z'
+          datacontenttype: application/json
+          correlationid: ord-4711
+          customerid: ACME
+          orderid: '4711'
+          data:
+            orderId: '4711'
+            erpOrderNumber: '8000043217'
+            netValue:
+              value: 84000.0
+              currency: EUR
+            acceptedAt: '2026-10-03T09:12:05Z'
+    salesOrderRefused:
+      messageId: salesOrderRefused
+      name: salesOrderRefused
+      title: Sales Order Refused
+      summary: SAP refused the order, for example because the credit check failed.
+      description: CloudEvent of type com.acme.finance.salesOrderRefused. SAP refused the order, for example because
+        the credit check failed.
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: https://raw.githubusercontent.com/azure-intelligence-domain/contracts/v1.2.0/schemas/envelope/1.1.0/envelope.schema.json
+        - type: object
+          description: What this event adds to the envelope.
+          required:
+          - type
+          - orderid
+          - customerid
+          - data
+          properties:
+            type:
+              const: com.acme.finance.salesOrderRefused
+            orderid:
+              type: string
+            customerid:
+              type: string
+            data:
+              $ref: '#/components/schemas/salesOrderRefusedData'
+      examples:
+      - name: acmeOrder4711
+        summary: SalesOrderRefused for ACME's order 4711.
+        payload:
+          specversion: '1.0'
+          id: salesOrderRefused-4711-0001
+          source: /system-api-sap/1.0.0
+          type: com.acme.finance.salesOrderRefused
+          time: '2026-10-03T09:20:06Z'
+          datacontenttype: application/json
+          correlationid: ord-4711
+          customerid: ACME
+          orderid: '4711'
+          data:
+            orderId: '4711'
+            erpOrderNumber: '8000043218'
+            reason: Credit limit exceeded.
+            refusedAt: '2026-10-03T09:20:05Z'
+    invoiceIssued:
+      messageId: invoiceIssued
+      name: invoiceIssued
+      title: Invoice Issued
+      summary: 'SAP billed the order: the invoice was sent to the customer.'
+      description: 'CloudEvent of type com.acme.finance.invoiceIssued. SAP billed the order: the invoice was sent
+        to the customer.'
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: https://raw.githubusercontent.com/azure-intelligence-domain/contracts/v1.2.0/schemas/envelope/1.1.0/envelope.schema.json
+        - type: object
+          description: What this event adds to the envelope.
+          required:
+          - type
+          - orderid
+          - customerid
+          - data
+          properties:
+            type:
+              const: com.acme.finance.invoiceIssued
+            orderid:
+              type: string
+            customerid:
+              type: string
+            data:
+              $ref: '#/components/schemas/invoiceIssuedData'
+      examples:
+      - name: acmeOrder4711
+        summary: InvoiceIssued for ACME's order 4711.
+        payload:
+          specversion: '1.0'
+          id: invoiceIssued-4711-0001
+          source: /system-api-sap/1.0.0
+          type: com.acme.finance.invoiceIssued
+          time: '2026-10-03T09:12:07Z'
+          datacontenttype: application/json
+          correlationid: ord-4711
+          customerid: ACME
+          orderid: '4711'
+          data:
+            orderId: '4711'
+            invoiceNumber: '90004711'
+            erpOrderNumber: '8000043217'
+            amount:
+              value: 84000.0
+              currency: EUR
+            dueDate: '2026-11-02'
+            issuedAt: '2026-10-03T09:12:05Z'
+    paymentReceived:
+      messageId: paymentReceived
+      name: paymentReceived
+      title: Payment Received
+      summary: Money came in against an invoice.
+      description: CloudEvent of type com.acme.finance.paymentReceived. Money came in against an invoice.
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: https://raw.githubusercontent.com/azure-intelligence-domain/contracts/v1.2.0/schemas/envelope/1.1.0/envelope.schema.json
+        - type: object
+          description: What this event adds to the envelope.
+          required:
+          - type
+          - orderid
+          - customerid
+          - data
+          properties:
+            type:
+              const: com.acme.finance.paymentReceived
+            orderid:
+              type: string
+            customerid:
+              type: string
+            data:
+              $ref: '#/components/schemas/paymentReceivedData'
+      examples:
+      - name: acmeOrder4711
+        summary: PaymentReceived for ACME's order 4711.
+        payload:
+          specversion: '1.0'
+          id: paymentReceived-4711-0001
+          source: /system-api-sap/1.0.0
+          type: com.acme.finance.paymentReceived
+          time: '2026-10-10T08:00:01Z'
+          datacontenttype: application/json
+          correlationid: ord-4711
+          customerid: ACME
+          orderid: '4711'
+          data:
+            orderId: '4711'
+            invoiceNumber: '90004711'
+            paymentId: '1400000001'
+            amount:
+              value: 84000.0
+              currency: EUR
+            invoicePaidInFull: true
+            receivedAt: '2026-10-10T08:00:00Z'
+  schemas:
+    money:
+      type: object
+      description: An amount of money.
+      required:
+      - value
+      - currency
+      properties:
+        value:
+          type: number
+          description: The amount.
+        currency:
+          type: string
+          description: ISO 4217 currency code.
+          pattern: ^[A-Z]{3}$
+    salesOrderAcceptedData:
+      type: object
+      description: What SAP accepted.
+      required:
+      - orderId
+      - erpOrderNumber
+      - netValue
+      - acceptedAt
+      properties:
+        orderId:
+          type: string
+          description: The order.
+        erpOrderNumber:
+          type: string
+          description: SAP sales order number.
+        netValue:
+          $ref: '#/components/schemas/money'
+        acceptedAt:
+          type: string
+          description: When. ISO 8601, UTC.
+          format: date-time
+    salesOrderRefusedData:
+      type: object
+      description: What SAP refused, and why.
+      required:
+      - orderId
+      - erpOrderNumber
+      - reason
+      - refusedAt
+      properties:
+        orderId:
+          type: string
+          description: The order.
+        erpOrderNumber:
+          type: string
+          description: SAP sales order number.
+        reason:
+          type: string
+          description: Why.
+        refusedAt:
+          type: string
+          description: When. ISO 8601, UTC.
+          format: date-time
+    invoiceIssuedData:
+      type: object
+      description: The invoice.
+      required:
+      - orderId
+      - invoiceNumber
+      - erpOrderNumber
+      - amount
+      - dueDate
+      - issuedAt
+      properties:
+        orderId:
+          type: string
+          description: The order.
+        invoiceNumber:
+          type: string
+          description: Invoice number.
+        erpOrderNumber:
+          type: string
+          description: The sales order.
+        amount:
+          $ref: '#/components/schemas/money'
+        dueDate:
+          type: string
+          description: Due date.
+          format: date
+        issuedAt:
+          type: string
+          description: When. ISO 8601, UTC.
+          format: date-time
+    paymentReceivedData:
+      type: object
+      description: The payment.
+      required:
+      - orderId
+      - invoiceNumber
+      - paymentId
+      - amount
+      - invoicePaidInFull
+      - receivedAt
+      properties:
+        orderId:
+          type: string
+          description: The order.
+        invoiceNumber:
+          type: string
+          description: The invoice.
+        paymentId:
+          type: string
+          description: Payment document.
+        amount:
+          $ref: '#/components/schemas/money'
+        invoicePaidInFull:
+          type: boolean
+          description: true once the invoice is covered.
+        receivedAt:
+          type: string
+          description: When. ISO 8601, UTC.
+          format: date-time

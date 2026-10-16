@@ -1,0 +1,644 @@
+openapi: 3.0.3
+info:
+  title: '[Finance] SAP System API'
+  version: 1.0.0
+  description: 'SAP as the finance domain''s system: sales orders (with the credit check), invoices and payments,
+    translated to the platform''s contract. Internal: only building blocks on the platform''s allow-list may call
+    it, with an Entra ID token. Every change becomes a finance fact on evgt-intplat-finance (asyncapi.yaml).'
+  contact:
+    name: Finance Domain Team
+    url: https://github.com/azure-intelligence-domain/system-api-sap
+  license:
+    name: MIT
+    url: https://github.com/azure-intelligence-domain/system-api-sap/blob/main/LICENSE
+  x-gateway: other
+x-gateway: other
+externalDocs:
+  description: EventCatalog entry of the finance domain
+  url: https://azure-intelligence-domain.github.io/eventcatalog/docs/domains/finance/1.0.0
+servers:
+- url: https://apim-intplat-demo.azure-api.net/sap
+  description: Gateway, product system-apis (internal callers only). No version in the URI.
+security:
+- platformToken: []
+tags:
+- name: Finance
+  description: Sales orders, invoices and payments in SAP.
+paths:
+  /sales-orders:
+    x-summary: Sales Orders
+    post:
+      tags:
+      - Finance
+      operationId: createSalesOrder
+      summary: Create Sales Order
+      description: 'Takes an order into SAP: runs the credit check, and creates the sales order as accepted or refused.
+        An accepted order is billed at once. Publishes SalesOrderAccepted and InvoiceIssued, or SalesOrderRefused.
+        One sales order per order: a retry for the same orderId returns the existing one (200) and publishes nothing.'
+      parameters:
+      - $ref: '#/components/parameters/correlationId'
+      responses:
+        '201':
+          description: The sales order, accepted or refused.
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/salesOrder'
+              example:
+                _links:
+                  self:
+                    href: /sales-orders/8000043217
+                erpOrderNumber: '8000043217'
+                orderId: '4711'
+                customerId: ACME
+                status: accepted
+                netValue:
+                  value: 84000.0
+                  currency: EUR
+                items:
+                - itemNumber: 10
+                  productId: SKU-1042
+                  quantity: 12
+                  netPrice:
+                    value: 7000.0
+                    currency: EUR
+                invoiceNumber: '90004711'
+                createdAt: '2026-10-03T09:12:05Z'
+          headers:
+            Location:
+              description: URI of the new resource.
+              schema:
+                type: string
+              example: /sales-orders/8000043217
+        '200':
+          description: The sales order already existed for this orderId.
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/salesOrder'
+              example:
+                _links:
+                  self:
+                    href: /sales-orders/8000043217
+                erpOrderNumber: '8000043217'
+                orderId: '4711'
+                customerId: ACME
+                status: accepted
+                netValue:
+                  value: 84000.0
+                  currency: EUR
+                items:
+                - itemNumber: 10
+                  productId: SKU-1042
+                  quantity: 12
+                  netPrice:
+                    value: 7000.0
+                    currency: EUR
+                invoiceNumber: '90004711'
+                createdAt: '2026-10-03T09:12:05Z'
+        '400':
+          description: The request does not match the contract, or the Correlation-Id header is missing or invalid.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/problemDetail'
+              example:
+                type: https://github.com/azure-intelligence-domain/system-api-sap/blob/main/docs/problems/invalid-request.md
+                title: Invalid Request
+                status: 400
+                detail: The request does not match the contract, or the Correlation-Id header is missing or invalid.
+                instance: /sales-orders
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/salesOrderRequest'
+            example:
+              orderId: '4711'
+              customerId: ACME
+              orderLines:
+              - lineNumber: 1
+                productId: SKU-1042
+                quantity: 12
+                unitPrice:
+                  value: 7000.0
+                  currency: EUR
+              totalAmount:
+                value: 84000.0
+                currency: EUR
+      x-business-keys:
+        orderid: body.orderId
+        customerid: body.customerId
+      x-events:
+      - SalesOrderAccepted
+      - SalesOrderRefused
+      - InvoiceIssued
+  /sales-orders/{erpOrderNumber}:
+    x-summary: Sales Order
+    get:
+      tags:
+      - Finance
+      operationId: retrieveSalesOrder
+      summary: Retrieve Sales Order
+      description: One sales order.
+      parameters:
+      - $ref: '#/components/parameters/erpOrderNumber'
+      - $ref: '#/components/parameters/correlationId'
+      responses:
+        '200':
+          description: The sales order.
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/salesOrder'
+              example:
+                _links:
+                  self:
+                    href: /sales-orders/8000043217
+                erpOrderNumber: '8000043217'
+                orderId: '4711'
+                customerId: ACME
+                status: accepted
+                netValue:
+                  value: 84000.0
+                  currency: EUR
+                items:
+                - itemNumber: 10
+                  productId: SKU-1042
+                  quantity: 12
+                  netPrice:
+                    value: 7000.0
+                    currency: EUR
+                invoiceNumber: '90004711'
+                createdAt: '2026-10-03T09:12:05Z'
+        '400':
+          description: The request does not match the contract, or the Correlation-Id header is missing or invalid.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/problemDetail'
+              example:
+                type: https://github.com/azure-intelligence-domain/system-api-sap/blob/main/docs/problems/invalid-request.md
+                title: Invalid Request
+                status: 400
+                detail: The request does not match the contract, or the Correlation-Id header is missing or invalid.
+                instance: /sales-orders/8000043217
+        '404':
+          description: SAP has no sales order with this number.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/problemDetail'
+              example:
+                type: https://github.com/azure-intelligence-domain/system-api-sap/blob/main/docs/problems/not-found.md
+                title: Sales Order Not Found
+                status: 404
+                detail: SAP has no sales order with this number.
+                instance: /sales-orders/8000043217
+      x-business-keys: {}
+  /invoices/{invoiceNumber}:
+    x-summary: Invoice
+    get:
+      tags:
+      - Finance
+      operationId: retrieveInvoice
+      summary: Retrieve Invoice
+      description: One invoice, with what is paid so far.
+      parameters:
+      - $ref: '#/components/parameters/invoiceNumber'
+      - $ref: '#/components/parameters/correlationId'
+      responses:
+        '200':
+          description: The invoice.
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/invoice'
+              example:
+                _links:
+                  self:
+                    href: /invoices/90004711
+                invoiceNumber: '90004711'
+                erpOrderNumber: '8000043217'
+                orderId: '4711'
+                customerId: ACME
+                amount:
+                  value: 84000.0
+                  currency: EUR
+                paidAmount:
+                  value: 0.0
+                  currency: EUR
+                status: open
+                issuedAt: '2026-10-03T09:12:05Z'
+                dueDate: '2026-11-02'
+        '400':
+          description: The request does not match the contract, or the Correlation-Id header is missing or invalid.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/problemDetail'
+              example:
+                type: https://github.com/azure-intelligence-domain/system-api-sap/blob/main/docs/problems/invalid-request.md
+                title: Invalid Request
+                status: 400
+                detail: The request does not match the contract, or the Correlation-Id header is missing or invalid.
+                instance: /invoices/90004711
+        '404':
+          description: SAP has no invoice with this number.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/problemDetail'
+              example:
+                type: https://github.com/azure-intelligence-domain/system-api-sap/blob/main/docs/problems/not-found.md
+                title: Invoice Not Found
+                status: 404
+                detail: SAP has no invoice with this number.
+                instance: /invoices/90004711
+      x-business-keys: {}
+  /payments:
+    x-summary: Payments
+    post:
+      tags:
+      - Finance
+      operationId: recordPayment
+      summary: Record Payment
+      description: Records money received against an invoice (the bank statement). Publishes PaymentReceived.
+      parameters:
+      - $ref: '#/components/parameters/correlationId'
+      responses:
+        '201':
+          description: The payment.
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/payment'
+              example:
+                _links:
+                  self:
+                    href: /payments/1400000001
+                paymentId: '1400000001'
+                invoiceNumber: '90004711'
+                orderId: '4711'
+                amount:
+                  value: 84000.0
+                  currency: EUR
+                invoicePaidInFull: true
+                receivedAt: '2026-10-10T08:00:00Z'
+          headers:
+            Location:
+              description: URI of the new resource.
+              schema:
+                type: string
+              example: /payments/1400000001
+        '400':
+          description: The request does not match the contract, or the Correlation-Id header is missing or invalid.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/problemDetail'
+              example:
+                type: https://github.com/azure-intelligence-domain/system-api-sap/blob/main/docs/problems/invalid-request.md
+                title: Invalid Request
+                status: 400
+                detail: The request does not match the contract, or the Correlation-Id header is missing or invalid.
+                instance: /payments
+        '404':
+          description: SAP has no invoice with this number.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/problemDetail'
+              example:
+                type: https://github.com/azure-intelligence-domain/system-api-sap/blob/main/docs/problems/not-found.md
+                title: Invoice Not Found
+                status: 404
+                detail: SAP has no invoice with this number.
+                instance: /payments
+        '409':
+          description: The invoice is paid in full already.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/problemDetail'
+              example:
+                type: https://github.com/azure-intelligence-domain/system-api-sap/blob/main/docs/problems/invoice-already-paid.md
+                title: Invoice Already Paid
+                status: 409
+                detail: The invoice is paid in full already.
+                instance: /payments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/paymentRequest'
+            example:
+              invoiceNumber: '90004711'
+              amount:
+                value: 84000.0
+                currency: EUR
+      x-business-keys: {}
+      x-events:
+      - PaymentReceived
+components:
+  securitySchemes:
+    platformToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Entra ID token for the intplat-platform-apis application, of a runtime identity on the platform's
+        allow-list (internal-callers).
+  parameters:
+    correlationId:
+      name: Correlation-Id
+      in: header
+      required: true
+      description: The business journey this call belongs to, for example ord-4711.
+      schema:
+        type: string
+        pattern: ^[a-z0-9]+(-[a-z0-9]+)*$
+        maxLength: 64
+      example: ord-4711
+    erpOrderNumber:
+      name: erpOrderNumber
+      in: path
+      required: true
+      description: SAP sales order number, e.g. 8000043217.
+      schema:
+        type: string
+        pattern: ^[0-9]+$
+      example: '8000043217'
+    invoiceNumber:
+      name: invoiceNumber
+      in: path
+      required: true
+      description: Invoice number, e.g. 90004711.
+      schema:
+        type: string
+        pattern: ^[0-9]+$
+      example: '90004711'
+  schemas:
+    salesOrderRequest:
+      type: object
+      description: An order, as the ERP takes it in.
+      required:
+      - orderId
+      - customerId
+      - orderLines
+      - totalAmount
+      properties:
+        orderId:
+          type: string
+          description: The platform's order id, e.g. 4711.
+        customerId:
+          type: string
+          description: The customer, e.g. ACME.
+        orderLines:
+          type: array
+          minItems: 1
+          description: The lines.
+          items:
+            type: object
+            description: A line.
+            required:
+            - productId
+            - quantity
+            - unitPrice
+            properties:
+              lineNumber:
+                type: integer
+                description: Line number in the order.
+                minimum: 1
+              productId:
+                type: string
+                description: The product.
+              quantity:
+                type: integer
+                description: Units.
+                minimum: 1
+              unitPrice:
+                $ref: '#/components/schemas/money'
+        totalAmount:
+          $ref: '#/components/schemas/money'
+    salesOrder:
+      type: object
+      description: A sales order in SAP.
+      required:
+      - _links
+      - erpOrderNumber
+      - orderId
+      - customerId
+      - status
+      - netValue
+      - items
+      - createdAt
+      properties:
+        _links:
+          type: object
+          description: HAL links.
+          required:
+          - self
+          properties:
+            self:
+              $ref: '#/components/schemas/halLink'
+        erpOrderNumber:
+          type: string
+          description: SAP sales order number (VBELN).
+        orderId:
+          type: string
+          description: The platform's order id (BSTKD).
+        customerId:
+          type: string
+          description: Sold-to customer (KUNNR).
+        status:
+          type: string
+          description: Outcome of the credit check.
+          enum:
+          - accepted
+          - refused
+        refusalReason:
+          type: string
+          description: Why it was refused (ABGRU).
+        netValue:
+          $ref: '#/components/schemas/money'
+        items:
+          type: array
+          description: Items (VBAP).
+          items:
+            type: object
+            description: An item.
+            required:
+            - itemNumber
+            - productId
+            - quantity
+            - netPrice
+            properties:
+              itemNumber:
+                type: integer
+                description: 'POSNR: 10, 20, ...'
+              productId:
+                type: string
+                description: MATNR.
+              quantity:
+                type: integer
+                description: KWMENG.
+              netPrice:
+                $ref: '#/components/schemas/money'
+        invoiceNumber:
+          type: string
+          description: The invoice, once billed.
+        createdAt:
+          type: string
+          description: ERDAT. ISO 8601, UTC.
+          format: date-time
+    invoice:
+      type: object
+      description: An invoice (billing document) in SAP.
+      required:
+      - _links
+      - invoiceNumber
+      - erpOrderNumber
+      - orderId
+      - customerId
+      - amount
+      - paidAmount
+      - status
+      - issuedAt
+      - dueDate
+      properties:
+        _links:
+          type: object
+          description: HAL links.
+          required:
+          - self
+          properties:
+            self:
+              $ref: '#/components/schemas/halLink'
+        invoiceNumber:
+          type: string
+          description: Billing document number (VBRK-VBELN).
+        erpOrderNumber:
+          type: string
+          description: The sales order.
+        orderId:
+          type: string
+          description: The platform's order id.
+        customerId:
+          type: string
+          description: The payer.
+        amount:
+          $ref: '#/components/schemas/money'
+        paidAmount:
+          $ref: '#/components/schemas/money'
+        status:
+          type: string
+          description: Open until paid in full.
+          enum:
+          - open
+          - paid
+        issuedAt:
+          type: string
+          description: Billing date. ISO 8601, UTC.
+          format: date-time
+        dueDate:
+          type: string
+          description: Due date. ISO 8601.
+          format: date
+    paymentRequest:
+      type: object
+      description: Money received for an invoice.
+      required:
+      - invoiceNumber
+      - amount
+      properties:
+        invoiceNumber:
+          type: string
+          description: The invoice.
+        amount:
+          $ref: '#/components/schemas/money'
+    payment:
+      type: object
+      description: A payment in SAP.
+      required:
+      - _links
+      - paymentId
+      - invoiceNumber
+      - orderId
+      - amount
+      - invoicePaidInFull
+      - receivedAt
+      properties:
+        _links:
+          type: object
+          description: HAL links.
+          required:
+          - self
+          properties:
+            self:
+              $ref: '#/components/schemas/halLink'
+        paymentId:
+          type: string
+          description: Payment document number.
+        invoiceNumber:
+          type: string
+          description: The invoice.
+        orderId:
+          type: string
+          description: The platform's order id.
+        amount:
+          $ref: '#/components/schemas/money'
+        invoicePaidInFull:
+          type: boolean
+          description: true once all payments cover the invoice.
+        receivedAt:
+          type: string
+          description: Posting date. ISO 8601, UTC.
+          format: date-time
+    money:
+      type: object
+      description: An amount of money.
+      required:
+      - value
+      - currency
+      properties:
+        value:
+          type: number
+          description: The amount.
+        currency:
+          type: string
+          description: ISO 4217 currency code.
+          pattern: ^[A-Z]{3}$
+    halLink:
+      type: object
+      description: A HAL link.
+      required:
+      - href
+      properties:
+        href:
+          type: string
+          description: URI relative to the API root.
+    problemDetail:
+      type: object
+      description: Problem Details (RFC 9457).
+      required:
+      - title
+      - detail
+      properties:
+        type:
+          type: string
+          description: Problem type.
+          format: uri
+        title:
+          type: string
+          description: Summary.
+        status:
+          type: integer
+          description: HTTP status.
+        detail:
+          type: string
+          description: This occurrence.
+        instance:
+          type: string
+          description: Request URI.
