@@ -16,10 +16,10 @@ the **finance team**. A Python Function on Flex Consumption.
 
 ```mermaid
 flowchart LR
-    caller["finance-intake<br/>Logic App"] -- "Entra token" --> apim{{"apim-intplat-demo<br/>product system-apis"}}
+    caller["finance-intake · webshop<br/>customer service"] -- "Entra token" --> apim{{"apim-intplat-demo<br/>product system-apis"}}
     apim -- "gateway identity" --> func["func-intplat-system-api-sap<br/>Easy Auth: the gateway only"]
     func -- "runtime identity" --> db[("cosmos-intplat-sap<br/>VBAK · VBRK · Payment · NumberRange")]
-    func -- "SalesOrderAccepted · SalesOrderRefused · InvoiceIssued · PaymentReceived" --> topic[["evgt-intplat-finance"]]
+    func -- "SalesOrderAccepted · SalesOrderRefused · InvoiceIssued<br/>PaymentReceived · SalesOrderCancelled" --> topic[["evgt-intplat-finance"]]
     topic --> tap[["tap"]]
     topic --> order["Order Process API<br/>(policies)"]
 ```
@@ -28,8 +28,10 @@ flowchart LR
 |---|---|---|
 | Create Sales Order | `POST /sales-orders` | Credit check (above 250,000 refused); accepted orders are billed at once. One per order. |
 | Retrieve Sales Order | `GET /sales-orders/{erpOrderNumber}` |  |
-| Retrieve Invoice | `GET /invoices/{invoiceNumber}` | With the amount paid so far |
-| Record Payment | `POST /payments` | The bank statement: PaymentReceived; paid in full when covered |
+| Cancel Sales Order | `DELETE /sales-orders/{erpOrderNumber}?reason=` | Soft delete; the invoice is reversed by a credit note: SalesOrderCancelled (since 1.2.0) |
+| Retrieve List of Invoices | `GET /invoices?orderId=` | The invoices of one order |
+| Retrieve Invoice | `GET /invoices/{invoiceNumber}` | With the amount paid so far, and its credit note if reversed |
+| Record Payment | `POST /payments` | The bank statement: PaymentReceived; paid in full when covered. A reversed invoice cannot be paid (409) |
 
 Every write is idempotent per order where the contract says so: a retry returns what exists and
 publishes nothing, so Event Grid's at-least-once delivery never creates a second sales order,
@@ -49,6 +51,8 @@ order domain.
 | `items[]` | VBAP: POSNR, MATNR, KWMENG, NETPR |
 | `netValue` | NETWR + WAERK |
 | `invoiceNumber` | VBRK.id |
+| `cancellation` | VBAK CANCEL_REASON, CANCELLED_AT, CREDIT_MEMO |
+| `creditNote` | VBRK with FKART G2 (credit memo, numbers from 70004711), referenced by the invoice's CREDIT_MEMO |
 
 ## Tests
 

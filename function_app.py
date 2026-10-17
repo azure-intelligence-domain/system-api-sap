@@ -30,10 +30,26 @@ def retrieve_sales_order(req: func.HttpRequest, store) -> func.HttpResponse:
 
 
 @kit.refusals
+def cancel_sales_order(req: func.HttpRequest, store, topic) -> func.HttpResponse:
+    journey = kit.journey(req)
+    reason = req.params.get("reason") or "Order cancelled."
+    if len(reason) > 200:
+        raise kit.invalid("Query parameter reason is at most 200 characters.", req)
+    try:
+        cancelled, facts = sap.cancel_sales_order(store, req.route_params["erpOrderNumber"], reason)
+    except sap.SalesOrderNotFound:
+        raise kit.refused(404, "Sales Order Not Found", "SAP has no sales order with this number.", "not-found", req) from None
+    except sap.SalesOrderRefused:
+        raise kit.refused(409, "Sales Order Refused", "A refused sales order cannot be cancelled.", "sales-order-refused", req) from None
+    topic.publish(facts, journey)
+    return kit.hal(200, cancelled)
+
+
+@kit.refusals
 def retrieve_invoice(req: func.HttpRequest, store) -> func.HttpResponse:
     kit.journey(req)
     vbrk = store.get("VBRK", req.route_params["invoiceNumber"])
-    if vbrk is None:
+    if vbrk is None or vbrk.get("FKART") == "G2":
         raise kit.refused(404, "Invoice Not Found", "SAP has no invoice with this number.", "not-found", req)
     return kit.hal(200, sap.invoice(vbrk))
 
@@ -44,7 +60,7 @@ def retrieve_list_of_invoices(req: func.HttpRequest, store) -> func.HttpResponse
     order_id = req.params.get("orderId", "")
     if not order_id.isdigit():
         raise kit.invalid("Query parameter orderId is required, e.g. 4711.", req)
-    invoices = [sap.invoice(vbrk) for vbrk in store.find("VBRK", BSTKD=order_id)]
+    invoices = [sap.invoice(vbrk) for vbrk in store.find("VBRK", BSTKD=order_id) if vbrk.get("FKART") != "G2"]  # not credit memos
     return kit.hal(200, {"_links": {"self": {"href": f"/invoices?orderId={order_id}"}}, "totalCount": len(invoices),
                          "_embedded": {"invoices": invoices}})
 
@@ -57,7 +73,7 @@ def record_payment(req: func.HttpRequest, store, topic) -> func.HttpResponse:
     except sap.InvoiceNotFound:
         raise kit.refused(404, "Invoice Not Found", "SAP has no invoice with this number.", "not-found", req) from None
     except sap.InvoicePaid:
-        raise kit.refused(409, "Invoice Already Paid", "The invoice is paid in full already.", "invoice-already-paid", req) from None
+        raise kit.refused(409, "Invoice Already Paid", "The invoice is paid in full already, or credited.", "invoice-already-paid", req) from None
     except sap.CurrencyMismatch:
         raise kit.invalid("amount: the payment's currency differs from the invoice's.", req) from None
     topic.publish(facts, journey)
@@ -75,6 +91,11 @@ def createSalesOrder(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="sales-orders/{erpOrderNumber}", methods=["GET"])
 def retrieveSalesOrder(req: func.HttpRequest) -> func.HttpResponse:
     return retrieve_sales_order(req, kit.system_store())
+
+
+@app.route(route="sales-orders/{erpOrderNumber}", methods=["DELETE"])
+def cancelSalesOrder(req: func.HttpRequest) -> func.HttpResponse:
+    return cancel_sales_order(req, kit.system_store(), kit.domain_topic())
 
 
 @app.route(route="invoices", methods=["GET"])

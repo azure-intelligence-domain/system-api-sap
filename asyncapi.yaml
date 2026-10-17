@@ -2,7 +2,7 @@ asyncapi: 2.6.0
 id: urn:azure-intelligence-domain:finance:system-api-sap
 info:
   title: '[Finance] SAP Events'
-  version: 1.0.0
+  version: 1.1.0
   description: The business facts of the finance domain, published by the SAP System API to evgt-intplat-finance.
     Every event carries orderid and customerid as business keys and the order's journey as correlationid.
   contact:
@@ -134,6 +134,34 @@ channels:
         - system-api-sap
       message:
         $ref: '#/components/messages/paymentReceived'
+  finance.system-api-sap.event.sales-order-cancelled:
+    description: SAP cancelled the sales order; its invoice, if any, is reversed by a credit note.
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-finance
+          eventType: com.acme.finance.salesOrderCancelled
+    publish:
+      operationId: publishSalesOrderCancelled
+      summary: Publish SalesOrderCancelled.
+      description: 'The SAP System API publishes SalesOrderCancelled when this fact happens: SAP cancelled the sales
+        order; its invoice, if any, is reversed by a credit note.'
+      security:
+      - entraIdEventGrid:
+        - https://eventgrid.azure.net/.default
+      tags:
+      - name: finance
+        description: Finance domain.
+      externalDocs:
+        description: SalesOrderCancelled in EventCatalog
+        url: https://azure-intelligence-domain.github.io/eventcatalog/docs/events/salesOrderCancelled
+      x-producers:
+        demo:
+        - system-api-sap
+      message:
+        $ref: '#/components/messages/salesOrderCancelled'
 components:
   securitySchemes:
     entraIdEventGrid:
@@ -328,6 +356,56 @@ components:
               currency: EUR
             invoicePaidInFull: true
             receivedAt: '2026-10-10T08:00:00Z'
+    salesOrderCancelled:
+      messageId: salesOrderCancelled
+      name: salesOrderCancelled
+      title: Sales Order Cancelled
+      summary: SAP cancelled the sales order; its invoice, if any, is reversed by a credit note.
+      description: CloudEvent of type com.acme.finance.salesOrderCancelled. SAP cancelled the sales order; its invoice,
+        if any, is reversed by a credit note.
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: https://raw.githubusercontent.com/azure-intelligence-domain/contracts/v1.2.0/schemas/envelope/1.1.0/envelope.schema.json
+        - type: object
+          description: What this event adds to the envelope.
+          required:
+          - type
+          - orderid
+          - customerid
+          - data
+          properties:
+            type:
+              const: com.acme.finance.salesOrderCancelled
+            orderid:
+              type: string
+            customerid:
+              type: string
+            data:
+              $ref: '#/components/schemas/salesOrderCancelledData'
+      examples:
+      - name: acmeOrder4711
+        summary: SalesOrderCancelled for ACME's order 4711.
+        payload:
+          specversion: '1.0'
+          id: salesOrderCancelled-4711-0001
+          source: /system-api-sap/1.0.0
+          type: com.acme.finance.salesOrderCancelled
+          time: '2026-10-03T09:30:01Z'
+          datacontenttype: application/json
+          correlationid: ord-4711
+          customerid: ACME
+          orderid: '4711'
+          data:
+            orderId: '4711'
+            erpOrderNumber: '8000043217'
+            reason: Customer changed their mind.
+            invoiceNumber: '90004711'
+            creditNoteNumber: '70004711'
+            creditedAmount:
+              value: 84000.0
+              currency: EUR
+            cancelledAt: '2026-10-03T09:30:00Z'
   schemas:
     money:
       type: object
@@ -442,6 +520,36 @@ components:
           type: boolean
           description: true once the invoice is covered.
         receivedAt:
+          type: string
+          description: When. ISO 8601, UTC.
+          format: date-time
+    salesOrderCancelledData:
+      type: object
+      description: What SAP cancelled, and the credit note.
+      required:
+      - orderId
+      - erpOrderNumber
+      - reason
+      - cancelledAt
+      properties:
+        orderId:
+          type: string
+          description: The order.
+        erpOrderNumber:
+          type: string
+          description: SAP sales order number.
+        reason:
+          type: string
+          description: Why.
+        invoiceNumber:
+          type: string
+          description: The reversed invoice, if one was issued.
+        creditNoteNumber:
+          type: string
+          description: The credit note, if an invoice was reversed.
+        creditedAmount:
+          $ref: '#/components/schemas/money'
+        cancelledAt:
           type: string
           description: When. ISO 8601, UTC.
           format: date-time

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: '[Finance] SAP System API'
-  version: 1.1.0
+  version: 1.2.0
   description: 'SAP as the finance domain''s system: sales orders (with the credit check), invoices and payments,
     translated to the platform''s contract. Internal: only building blocks on the platform''s allow-list may call
     it, with an Entra ID token. Every change becomes a finance fact on evgt-intplat-finance (asyncapi.yaml).'
@@ -197,6 +197,88 @@ paths:
                 detail: SAP has no sales order with this number.
                 instance: /sales-orders/8000043217
       x-business-keys: {}
+    delete:
+      tags:
+      - Finance
+      operationId: cancelSalesOrder
+      summary: Cancel Sales Order
+      description: 'Cancels an accepted sales order (soft delete: it gets a cancellation) and reverses its invoice
+        with a credit note. Publishes SalesOrderCancelled. Cancelling a cancelled sales order changes nothing (since
+        1.2.0).'
+      parameters:
+      - $ref: '#/components/parameters/erpOrderNumber'
+      - $ref: '#/components/parameters/reason'
+      - $ref: '#/components/parameters/correlationId'
+      responses:
+        '200':
+          description: The sales order, cancelled.
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/salesOrder'
+              example:
+                _links:
+                  self:
+                    href: /sales-orders/8000043217
+                erpOrderNumber: '8000043217'
+                orderId: '4711'
+                customerId: ACME
+                status: accepted
+                netValue:
+                  value: 84000.0
+                  currency: EUR
+                items:
+                - itemNumber: 10
+                  productId: SKU-1042
+                  quantity: 12
+                  netPrice:
+                    value: 7000.0
+                    currency: EUR
+                invoiceNumber: '90004711'
+                createdAt: '2026-10-03T09:12:05Z'
+                cancellation:
+                  reason: Customer changed their mind.
+                  cancelledAt: '2026-10-03T09:30:00Z'
+                  creditNoteNumber: '70004711'
+        '400':
+          description: The request does not match the contract, or the Correlation-Id header is missing or invalid.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/problemDetail'
+              example:
+                type: https://github.com/azure-intelligence-domain/system-api-sap/blob/main/docs/problems/invalid-request.md
+                title: Invalid Request
+                status: 400
+                detail: The request does not match the contract, or the Correlation-Id header is missing or invalid.
+                instance: /sales-orders/8000043217
+        '404':
+          description: SAP has no sales order with this number.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/problemDetail'
+              example:
+                type: https://github.com/azure-intelligence-domain/system-api-sap/blob/main/docs/problems/not-found.md
+                title: Sales Order Not Found
+                status: 404
+                detail: SAP has no sales order with this number.
+                instance: /sales-orders/8000043217
+        '409':
+          description: A refused sales order cannot be cancelled.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/problemDetail'
+              example:
+                type: https://github.com/azure-intelligence-domain/system-api-sap/blob/main/docs/problems/sales-order-refused.md
+                title: Sales Order Refused
+                status: 409
+                detail: A refused sales order cannot be cancelled.
+                instance: /sales-orders/8000043217
+      x-business-keys: {}
+      x-events:
+      - SalesOrderCancelled
   /invoices:
     x-summary: Invoices
     get:
@@ -372,7 +454,7 @@ paths:
                 detail: SAP has no invoice with this number.
                 instance: /payments
         '409':
-          description: The invoice is paid in full already.
+          description: The invoice is paid in full already, or credited.
           content:
             application/problem+json:
               schema:
@@ -381,7 +463,7 @@ paths:
                 type: https://github.com/azure-intelligence-domain/system-api-sap/blob/main/docs/problems/invoice-already-paid.md
                 title: Invoice Already Paid
                 status: 409
-                detail: The invoice is paid in full already.
+                detail: The invoice is paid in full already, or credited.
                 instance: /payments
       requestBody:
         required: true
@@ -443,6 +525,15 @@ components:
         type: string
         pattern: ^[0-9]+$
       example: '90004711'
+    reason:
+      name: reason
+      in: query
+      required: false
+      description: Why, at most 200 characters, e.g. Customer changed their mind.
+      schema:
+        type: string
+        maxLength: 200
+      example: Customer changed their mind.
   schemas:
     salesOrderRequest:
       type: object
@@ -557,6 +648,23 @@ components:
           type: string
           description: ERDAT. ISO 8601, UTC.
           format: date-time
+        cancellation:
+          type: object
+          description: Present once the sales order is cancelled (since 1.2.0).
+          required:
+          - reason
+          - cancelledAt
+          properties:
+            reason:
+              type: string
+              description: Why.
+            cancelledAt:
+              type: string
+              description: When. ISO 8601, UTC.
+              format: date-time
+            creditNoteNumber:
+              type: string
+              description: The credit note that reversed the invoice, if one was issued.
     invoice:
       type: object
       description: An invoice (billing document) in SAP.
@@ -598,7 +706,7 @@ components:
           $ref: '#/components/schemas/money'
         status:
           type: string
-          description: Open until paid in full.
+          description: Open until paid in full. A reversed invoice keeps its status and has a creditNote.
           enum:
           - open
           - paid
@@ -610,6 +718,23 @@ components:
           type: string
           description: Due date. ISO 8601.
           format: date
+        creditNote:
+          type: object
+          description: Present once a credit note reversed this invoice; it can no longer be paid (since 1.2.0).
+          required:
+          - creditNoteNumber
+          - amount
+          - issuedAt
+          properties:
+            creditNoteNumber:
+              type: string
+              description: Credit memo number (billing type G2).
+            amount:
+              $ref: '#/components/schemas/money'
+            issuedAt:
+              type: string
+              description: When. ISO 8601, UTC.
+              format: date-time
     invoiceList:
       type: object
       description: The invoices of one order.

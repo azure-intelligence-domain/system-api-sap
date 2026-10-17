@@ -88,3 +88,34 @@ def test_the_invoices_of_an_order(sap):
                                                               params={"orderId": "4711"}, body=b""), sap[0])
     page = json.loads(response.get_body())
     assert response.status_code == 200 and page["totalCount"] == 1 and page["_embedded"]["invoices"][0]["invoiceNumber"] == "90004711"
+
+
+def cancel(sap, number="8000043217", reason="Customer changed their mind."):
+    req = func.HttpRequest("DELETE", f"/sales-orders/{number}", headers={"Correlation-Id": "ord-4711"},
+                           route_params={"erpOrderNumber": number}, params={"reason": reason}, body=b"")
+    response = api.cancel_sales_order(req, *sap)
+    return response, json.loads(response.get_body())
+
+
+def test_cancelling_reverses_the_invoice_with_a_credit_note(sap):
+    create(sap)
+    response, order = cancel(sap)
+    assert response.status_code == 200 and order["cancellation"]["creditNoteNumber"] == "70004711" and order["status"] == "accepted"
+    event = sap[1].events[-1]
+    assert event["type"] == "com.acme.finance.salesOrderCancelled" and event["data"]["creditedAmount"]["value"] == 84000.0
+    assert_matches_asyncapi(event)
+    invoice = sap[0].get("VBRK", "90004711")
+    assert invoice["CREDIT_MEMO"] == "70004711" and sap[0].get("VBRK", "70004711")["FKART"] == "G2"
+    pay = api.record_payment(request("POST", "/payments", {"invoiceNumber": "90004711", "amount": {"value": 1.0, "currency": "EUR"}}), *sap)
+    assert pay.status_code == 409
+    again, _ = cancel(sap)
+    assert again.status_code == 200 and len(sap[1].events) == 3  # nothing new
+    page = json.loads(api.retrieve_list_of_invoices(func.HttpRequest("GET", "/invoices", headers={"Correlation-Id": "ord-4711"},
+                                                                     params={"orderId": "4711"}, body=b""), sap[0]).get_body())
+    assert [i["creditNote"]["creditNoteNumber"] for i in page["_embedded"]["invoices"]] == ["70004711"]  # the memo is not an invoice
+
+
+def test_a_refused_or_unknown_sales_order_cannot_be_cancelled(sap):
+    create(sap, {**ORDER, "totalAmount": {"value": 300000.0, "currency": "EUR"}})
+    assert cancel(sap)[0].status_code == 409
+    assert cancel(sap, "1")[0].status_code == 404
